@@ -241,7 +241,7 @@ locals {
  - `name        = local.name_web`
  - `name        = local.name_db`
 
-![alt text](img\5.png)
+![alt text](img/5.png)
 
 
 ---
