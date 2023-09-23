@@ -1,400 +1,510 @@
-# Никоноров Денис FOPS-6
-# Домашнее задание к занятию «Основы Terraform. Yandex Cloud»
+# Никоноров Денис - FOPS-6
+# Домашнее задание к занятию "Управляющие конструкции в коде Terraform"
+
 
 ### Задание 1
-В качестве ответа всегда полностью прикладывайте ваш terraform-код в git.
 
-4. Инициализируйте проект, выполните код. Исправьте намеренно допущенные синтаксические ошибки. Ищите внимательно, посимвольно. Ответьте, в чём заключается их суть.
-5. Ответьте, как в процессе обучения могут пригодиться параметры ```preemptible = true``` и ```core_fraction=5``` в параметрах ВМ. Ответ в документации Yandex Cloud.
+1. Изучите проект.
+2. Заполните файл personal.auto.tfvars
+3. Инициализируйте проект, выполните код (он выполнится даже если доступа к preview нет).
 
-В качестве решения приложите:
+Примечание: Если у вас не активирован preview доступ к функционалу "Группы безопасности" в Yandex Cloud - запросите доступ у поддержки облачного провайдера. Обычно его выдают в течении 24-х часов.
 
-- скриншот ЛК Yandex Cloud с созданной ВМ;
+Приложите скриншот входящих правил "Группы безопасности" в ЛК Yandex Cloud  или скриншот отказа в предоставлении доступа к preview версии.
+
+**Ответ.**
+
 ![alt text](img/1.png)
-
-- скриншот успешного подключения к консоли ВМ через ssh. К OS ubuntu необходимо подключаться под пользователем ubuntu: "ssh ubuntu@vm_ip_address";
-![alt text](img/2.png)
-
-- ответы на вопросы.
-
-Ответ: preemptible = true дает возможность останавливать наши ВМ, core_fraction=5. ВМ с уровнем производительности меньше 100% предназначены для запуска приложений, не требующих высокой производительности и не чувствительных к задержкам. Таким образом, данные настройки помогают нам экономить денежные средства при обучении.
-
-Jбнаружены две ошибки.
-
-platform_id = "standart-v4" - такой платформы у Yandex нет. Ставлю platform_id = standart-v1
-
-У Yandex можно минимально ставить от двух vCPU. Ставлю cores = 2
 
 ---
 
 ### Задание 2
 
-1. Изучите файлы проекта.
-2. Замените все хардкод-**значения** для ресурсов **yandex_compute_image** и **yandex_compute_instance** на **отдельные** переменные. К названиям переменных ВМ добавьте в начало префикс **vm_web_** .  Пример: **vm_web_name**.
-2. Объявите нужные переменные в файле variables.tf, обязательно указывайте тип переменной. Заполните их **default** прежними значениями из main.tf. 
-3. Проверьте terraform plan. Изменений быть не должно. 
+1. Создайте файл count-vm.tf. Опишите в нем создание двух **одинаковых** ВМ  web-1 и web-2(не web-0 и web-1!), с минимальными параметрами, используя мета-аргумент **count loop**. Назначьте ВМ созданную в 1-м задании группу безопасности.
+2. Создайте файл for_each-vm.tf. Опишите в нем создание 2 ВМ с именами "main" и "replica" **разных** по cpu/ram/disk , используя мета-аргумент **for_each loop**. Используйте для обеих ВМ одну, общую переменную типа list(object({ vm_name=string, cpu=number, ram=number, disk=number  })). При желании внесите в переменную все возможные параметры.
+3. ВМ из пункта 2.2 должны создаваться после создания ВМ из пункта 2.1.
+4. Используйте функцию file в local переменной для считывания ключа ~/.ssh/id_rsa.pub и его последующего использования в блоке metadata, взятому из ДЗ №2.
+5. Инициализируйте проект, выполните код.
 
 **Ответ.**
-<details><summary>variables update (фрагмент)</summary>
+
+<details><summary>count_vm.tf</summary>
 
 ```tf
-###wm_web
-variable "os_image" {
-  type = string
-  default = "ubuntu-2004-lts"
-  description = "OS iso image Linux"
-}
-variable "platformver" {
-  type = string
-  default = "standard-v1"
-  description = "Version platform version"
-}
-variable "name_vm" {
-  type = string
-  default = "netology-develop-platform-web"
-  description = "Set VM name"
-}
-variable "cores_vm" {
-  type = number
-  default = 2
-  description = "VM vCPU"
-}
-variable "memory_vm" {
-  type = number
-  default = 1
-  description = "VM RAM (Gb)"
-}
-variable "core_fractioin_vm" {
-  type = number
-  default = 5
-  description = "VM Core fraction (%)"  
-}
-```
-</details>
-<details><summary>main update (фрагмент)</summary>
+resource "yandex_compute_instance" "vm_web" {
+  count                     = 2
+  name                      = format("web-%01d", count.index + 1)
+  hostname                  = format("web-%01d", count.index + 1)
+  description               = format("web-%01d", count.index + 1)
+  zone                      = var.default_zone
+  folder_id                 = var.folder_id
 
-```tf
-resource "yandex_vpc_subnet" "develop" {
-  name           = var.vpc_name
-  zone           = var.default_zone
-  network_id     = yandex_vpc_network.develop.id
-  v4_cidr_blocks = var.default_cidr
-}
-
-
-data "yandex_compute_image" "ubuntu" {
-  family = var.os_image
-}
-resource "yandex_compute_instance" "platform" {
-  name        = var.name_vm
-  platform_id = var.platformver
+  platform_id = var.web_platform_id
+  allow_stopping_for_update = true
+  
   resources {
-    cores = var.cores_vm
-    memory = var.memory_vm
-    core_fraction = var.core_fractioin_vm
+    cores         = var.vms_resources["vm_web_resources"]["cores"]
+    memory        = var.vms_resources["vm_web_resources"]["memory"]
+    core_fraction = var.vms_resources["vm_web_resources"]["core_fraction"]
   }
+
   boot_disk {
     initialize_params {
-      image_id = data.yandex_compute_image.ubuntu.image_id
+      image_id = data.yandex_compute_image.debian_11.id
+      type     = "network-ssd"
+      size     = "15"
     }
   }
-  scheduling_policy {
-    preemptible = true
-  }
+
   network_interface {
-    subnet_id = yandex_vpc_subnet.develop.id
-    nat       = true
+    subnet_id  = yandex_vpc_subnet.develop.id
+    nat        = true
+    security_group_ids = [ yandex_vpc_security_group.example.id ]
   }
 
   metadata = {
-    serial-port-enable = 1
-    ssh-keys           = "ubuntu:${var.vms_ssh_root_key}"
+    ssh-keys = "debian:${local.ssh_file}"
   }
-}
-```
-</details>
 
-![alt text](img/3.png)
-
----
-
-### Задание 3
-
-1. Создайте в корне проекта файл 'vms_platform.tf' . Перенесите в него все переменные первой ВМ.
-2. Скопируйте блок ресурса и создайте с его помощью вторую ВМ в файле main.tf: **"netology-develop-platform-db"** ,  cores  = 2, memory = 2, core_fraction = 20. Объявите её переменные с префиксом **vm_db_** в том же файле ('vms_platform.tf').
-3. Примените изменения.
-
-**Ответ.**
-<details><summary>vms_platform.tf</summary>
-
-```tf
-
-resource "yandex_compute_instance" "platform2" {
-  name        = var.name_vm_db
-  platform_id = var.platformver_vm_db
-  resources {
-    cores         = var.cores_vm_db
-    memory        = var.memory_vm_db
-    core_fraction = var.core_fractioin_vm_db
-  }
-  boot_disk {
-    initialize_params {
-      image_id = data.yandex_compute_image.ubuntu.image_id
-    }
-  }
   scheduling_policy {
     preemptible = true
   }
+}
+```
+
+</details>
+
+<details><summary>for_each-vm.tf</summary>
+
+```tf
+resource "yandex_compute_instance" "vm_web_2" {
+  depends_on = [ yandex_compute_instance.vm_web ]
+  for_each = { for vm in var.vms_list : vm.vm_name => vm }
+  name                      = each.value.vm_name
+  hostname                  = each.value.vm_hostname
+  description               = each.value.vm_discription
+  zone                      = var.default_zone
+  folder_id                 = var.folder_id
+
+  platform_id = var.web_platform_id
+  allow_stopping_for_update = true
+  
+  resources {
+    cores         = each.value.cpu
+    memory        = each.value.ram
+    core_fraction = each.value.core_fraction
+  }
+
+  boot_disk {
+    initialize_params {
+      image_id = data.yandex_compute_image.debian_11.id
+      type     = each.value.disk_type
+      size     = each.value.disk
+    }
+  }
+
   network_interface {
-    subnet_id = yandex_vpc_subnet.develop.id
-    nat       = true
+    subnet_id  = yandex_vpc_subnet.develop.id
+    nat        = true
+    security_group_ids = [ yandex_vpc_security_group.example.id ]
   }
 
   metadata = {
-    serial-port-enable = 1
-    ssh-keys           = "ubuntu:${var.vms_ssh_root_key}"
+    ssh-keys = "${each.value.ssh_user}:${local.ssh_file}"
+  }
+
+  scheduling_policy {
+    preemptible = true
   }
 }
-###wm_db
-variable "name_vm_db" {
-  type        = string
-  default     = "netology-develop-platform-db"
-  description = "VM name"
-}
-
-variable "platformver_vm_db" {
-  type        = string
-  default     = "standard-v1"
-  description = "VM platform"
-}
-
-variable "cores_vm_db" {
-  type        = number
-  default     = 2
-  description = "VM vCPU"
-}
-
-variable "memory_vm_db" {
-  type        = number
-  default     = 2
-  description = "VM RAM (Gb)"
-}
-
-variable "core_fractioin_vm_db" {
-  type        = number
-  default     = 20
-  description = "VM core fraction (%)"
-}
 ```
 
 </details>
-
----
-
-## Задание 4
-
-1. Объявите в файле outputs.tf output типа map, содержащий { instance_name = external_ip } для каждой из ВМ.
-2. Примените изменения.
-
-В качестве решения приложите вывод значений ip-адресов команды ```terraform output```.
-
-**Ответ.**
-
-
-<details><summary>outputs.tf</summary>
-
-```tf
-
-output "info_vm_web" {
-  value = { for vm in yandex_compute_instance.platform[*] : vm.name =>  vm.network_interface[0].nat_ip_address }
-}
-
-output "info_vm_db" {
-  value = { for vm in yandex_compute_instance.platform2[*] : vm.name =>  vm.network_interface[0].nat_ip_address }
-}
-```
-</details>
-
-![alt text](img/4.png)
-
----
-
-### Задание 5
-
-1. В файле locals.tf опишите в **одном** local-блоке имя каждой ВМ, используйте интерполяцию ${..} с несколькими переменными по примеру из лекции.
-2. Замените переменные с именами ВМ из файла variables.tf на созданные вами local-переменные.
-3. Примените изменения.
-
-**Ответ.**
 
 <details><summary>locals.tf</summary>
 
 ```tf
 locals {
-  name_web = "${var.vpc_name}-${var.name_vm_web}-cf${var.core_fractioin_vm_web}"
-  name_db = "${var.vpc_name}-${var.name_vm_db}-cf${var.core_fractioin_vm_db}"
+  ssh_file = file("~/.ssh/id_rsa.pub")
 }
 ```
+
 </details>
 
-Значения в **yandex_compute_instance**:
- - `name        = local.name_web`
- - `name        = local.name_db`
-
-![alt text](img/5.png)
-
-
----
-
-### Задание 6
-
-1. Вместо использования трёх переменных  ".._cores",".._memory",".._core_fraction" в блоке  resources {...}, объедините их в переменные типа **map** с именами "vm_web_resources" и "vm_db_resources". В качестве продвинутой практики попробуйте создать одну map-переменную **vms_resources** и уже внутри неё конфиги обеих ВМ — вложенный map.
-2. Также поступите с блоком **metadata {serial-port-enable, ssh-keys}**, эта переменная должна быть общая для всех ваших ВМ.
-3. Найдите и удалите все более не используемые переменные проекта.
-4. Проверьте terraform plan. Изменений быть не должно.
-
-**Ответ.**
-
-Все более не используемые переменные проекта удалены.
-
-<details><summary>variables.tf (фрагмент)</summary>
+<details><summary>variables.tf (новый фрагмент)</summary>
 
 ```tf
+variable "web_platform_id" {
+  type        = string
+  default     = "standard-v1"
+  description = "VM platform"
+}
 
 variable "vms_resources" {
+  description = "common configs to VMs"
   type = map(object({
-    cores = number
-    memory = number
+    cores         = number
+    memory        = number
     core_fraction = number
   }))
   default = {
     vm_web_resources = {
-      cores = 2
-      memory = 1
-      core_fraction = 5 
-    }
-    vm_db_resources = {
-      cores = 2
-      memory = 2
-      core_fraction = 20
+      cores         = 2
+      memory        = 1
+      core_fraction = 5
     }
   }
-
 }
 
-###ssh vars
-
-variable "vms_metadata" {
-  type = object({
-    serial-port-enable = number
-    ssh-keys = string 
-  })
-  default = {
-    serial-port-enable = 1
-    ssh-keys = "ubuntu:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG81pIeDIjO1qiw0xI6rHs5txcF79JFs6zJULK6YdYCo thegamer8161@thegamer8161-MaiBook-M"  
-  }  
+variable "vms_list" {
+  description = "common configs to VMs"
+  type = list(object({
+    vm_name        = string
+    vm_hostname    = string
+    vm_discription = string
+    cpu            = number
+    ram            = number
+    disk           = number
+    disk_type      = string
+    core_fraction  = number
+    ssh_user       = string
+    })
+  )
+  default = [
+    {
+      vm_name        = "main"
+      vm_hostname    = "main"
+      vm_discription = "main"
+      cpu            = 2
+      ram            = 1
+      disk           = 10
+      disk_type      = "network-ssd"
+      core_fraction  = 5
+      ssh_user       = "debian"
+    },
+    {
+      vm_name        = "replica"
+      vm_hostname    = "replica"
+      vm_discription = "replica"
+      cpu            = 4
+      ram            = 2
+      disk           = 11
+      disk_type      = "network-hdd"
+      core_fraction  = 5
+      ssh_user       = "debian"
+    }
+  ]
 }
 ```
 
 </details>
 
-<details><summary>yandex_compute_instance (пример с vm_web) </summary>
-
-```tf
-resource "yandex_compute_instance" "platform" {
-  name        = local.name_web
-  platform_id = var.platformver
-  
-  resources {
-    cores = var.vms_resources["vm_web_resources"]["cores"]
-    memory = var.vms_resources["vm_web_resources"]["memory"]
-    core_fraction = var.vms_resources["vm_web_resources"]["core_fraction"]
-  }
-  boot_disk {
-    initialize_params {
-      image_id = data.yandex_compute_image.ubuntu.image_id
-    }
-  }
-  scheduling_policy {
-    preemptible = true
-  }
-  network_interface {
-    subnet_id = yandex_vpc_subnet.develop.id
-    nat       = true
-  }
-
-  metadata = {
-    serial-port-enable = var.vms_metadata["serial-port-enable"]
-    ssh-keys           = var.vms_metadata["ssh-keys"]
-  }
-}
-```
-</details>
+![alt text](img/2_1.png)
 
 ---
 
-## Дополнительное задание (со звёздочкой*)
+### Задание 3
 
-**Настоятельно рекомендуем выполнять все задания со звёздочкой.**   
-Они помогут глубже разобраться в материале. Задания со звёздочкой дополнительные, не обязательные к выполнению и никак не повлияют на получение вами зачёта по этому домашнему заданию. 
-
-### Задание 7*
-
-Изучите содержимое файла console.tf. Откройте terraform console, выполните следующие задания: 
-
-1. Напишите, какой командой можно отобразить **второй** элемент списка test_list.
-2. Найдите длину списка test_list с помощью функции length(<имя переменной>).
-3. Напишите, какой командой можно отобразить значение ключа admin из map test_map.
-4. Напишите interpolation-выражение, результатом которого будет: "John is admin for production server based on OS ubuntu-20-04 with X vcpu, Y ram and Z virtual disks", используйте данные из переменных test_list, test_map, servers и функцию length() для подстановки значений.
-
-В качестве решения предоставьте необходимые команды и их вывод.
+1. Создайте 3 одинаковых виртуальных диска, размером 1 Гб с помощью ресурса yandex_compute_disk и мета-аргумента count в файле **disk_vm.tf** .
+2. Создайте в том же файле одну ВМ c именем "storage" . Используйте блок **dynamic secondary_disk{..}** и мета-аргумент for_each для подключения созданных вами дополнительных дисков.
 
 **Ответ.**
 
-1.
-```
-> local.test_list[1]
-"staging"
-```
-2. 
-```
-> length(local.test_list)
-3
-```
-3.
-```
-> local.test_map["admin"]
-"John"
-```
-4.
-```
-"${local.test_map["admin"]} is admin for ${local.test_list[2]} server based on OS ${local.servers[local.test_list[2]].image} with ${local.servers[local.test_list[2]].cpu} vCPU, ${local.servers[local.test_list[2]].ram} ram, ${length(local.servers[local.test_list[2]].disks)} virtual disks"
+<details><summary>disk_vm.tf</summary>
 
-"John is admin for production server based on OS ubuntu-20-04 with 10 vCPU, 40 ram, 4 virtual disks"
+```tf
+resource "yandex_compute_disk" "disks" {
+  count = 3
+  name  = format("disk-%01d", count.index + 1)
+  type  = "network-ssd"
+  size  = 1
+  zone  = var.default_zone
+
+  labels = {
+    environment = "netology"
+  }
+}
+
+resource "yandex_compute_instance" "vm_storage" {
+  count       = 1
+  name        = "storage"
+  hostname    = "storage"
+  description = "storage"
+  zone        = var.default_zone
+  folder_id   = var.folder_id
+
+  platform_id               = var.web_platform_id
+  allow_stopping_for_update = true
+
+  resources {
+    cores         = 2
+    memory        = 1
+    core_fraction = 5
+  }
+
+  boot_disk {
+    initialize_params {
+      image_id = data.yandex_compute_image.debian_11.id
+      type     = "network-ssd"
+      size     = "15"
+    }
+  }
+
+  dynamic "secondary_disk" {
+    for_each = yandex_compute_disk.disks.*.id
+    content {
+      disk_id = secondary_disk.value
+    }
+  }
+
+  network_interface {
+    subnet_id          = yandex_vpc_subnet.develop.id
+    nat                = true
+    security_group_ids = [yandex_vpc_security_group.example.id]
+  }
+
+  metadata = {
+    ssh-keys = "debian:${local.ssh_file}"
+  }
+
+  scheduling_policy {
+    preemptible = true
+  }
+}
+
 ```
-![alt text](img/6.png)
+
+</details>
+
+![alt text](img/3_1.png)
+![alt text](img/3_2.png)
 
 ---
-### Правила приёма работы
 
-В git-репозитории, в котором было выполнено задание к занятию «Введение в Terraform», создайте новую ветку terraform-02, закоммитьте в эту ветку свой финальный код проекта. Ответы на задания и необходимые скриншоты оформите в md-файле в ветке terraform-02.
+### Задание 4
 
-В качестве результата прикрепите ссылку на ветку terraform-02 в вашем репозитории.
+1. В файле ansible.tf создайте inventory-файл для ansible.
+Используйте функцию tepmplatefile и файл-шаблон для создания ansible inventory-файла из лекции.
+Передайте в него в качестве переменных группы виртуальных машин из задания 2.1, 2.2 и 3.2.(т.е. 5 ВМ)
+2. Инвентарь должен содержать 3 группы [webservers], [databases], [storage] и быть динамическим, т.е. обработать как группу из 2-х ВМ так и 999 ВМ.
+4. Выполните код. Приложите скриншот получившегося файла. 
 
-**Важно. Удалите все созданные ресурсы**.
+Для общего зачета создайте в вашем GitHub репозитории новую ветку terraform-03. Закомитьте в эту ветку свой финальный код проекта, пришлите ссылку на коммит.   
+**Удалите все созданные ресурсы**.
+
+**Ответ.**
+
+<details><summary>ansible.tf</summary>
+
+```tf
+resource "local_file" "hosts_cfg" {
+  content = templatefile("${path.module}/hosts.tftpl",
+
+    {
+      webservers = yandex_compute_instance.vm_web,
+      databases  = yandex_compute_instance.vm_web_2,
+      storage    = yandex_compute_instance.vm_storage,
+    }
+  )
+  filename = "${abspath(path.module)}/hosts.cfg"
+}
+```
+
+</details>
+
+<details><summary>hosts.tftpl</summary>
+
+```c
+[webservers]
+%{~ for i in webservers ~}
+
+${i["name"]}   ansible_host=${i["network_interface"][0]["nat_ip_address"]} 
+%{~ endfor ~}
 
 
-### Критерии оценки
+[databases]
+%{~ for i in databases ~}
 
-Зачёт ставится, если:
+${i["name"]}   ansible_host=${i["network_interface"][0]["nat_ip_address"]} 
+%{~ endfor ~}
 
-* выполнены все задания,
-* ответы даны в развёрнутой форме,
-* приложены соответствующие скриншоты и файлы проекта,
-* в выполненных заданиях нет противоречий и нарушения логики.
 
-На доработку работу отправят, если:
+[storage]
+%{~ for i in storage ~}
 
-* задание выполнено частично или не выполнено вообще,
-* в логике выполнения заданий есть противоречия и существенные недостатки. 
+${i["name"]}   ansible_host=${i["network_interface"][0]["nat_ip_address"]} 
+%{~ endfor ~}
+```
 
+</details>
+
+![alt text](img/4_1.png)
+
+**[ссылка на код](https://gitlab.infernofeniks.ru/feniks/gitlab-hw-16-1/-/tree/terraform-03/03/src)**
+
+---
+
+## Дополнительные задания (со звездочкой*)
+
+**Настоятельно рекомендуем выполнять все задания под звёздочкой.**   Их выполнение поможет глубже разобраться в материале.   
+Задания под звёздочкой дополнительные (необязательные к выполнению) и никак не повлияют на получение вами зачета по этому домашнему заданию. 
+
+### Задание 5*(необязательное)
+1. Напишите output, который отобразит все 5 созданных ВМ в виде списка словарей:
+``` 
+[
+ {
+  "name" = 'имя ВМ1'
+  "id"   = 'идентификатор ВМ1'
+  "fqdn" = 'Внутренний FQDN ВМ1'
+ },
+ {
+  "name" = 'имя ВМ2'
+  "id"   = 'идентификатор ВМ2'
+  "fqdn" = 'Внутренний FQDN ВМ2'
+ },
+ ....
+]
+```
+Приложите скриншот вывода команды ```terrafrom output```
+
+**Ответ.**
+
+<details><summary>outputs.tf</summary>
+
+```tf
+output "virtual_machines_info" {
+  value = [
+    for instance in concat(tolist(yandex_compute_instance.vm_storage), tolist(yandex_compute_instance.vm_web), tolist(values(yandex_compute_instance.vm_web_2))) : {
+      name = instance.name
+      id   = instance.id
+      fqdn = instance.fqdn
+    }
+  ]
+}
+```
+
+</details>
+
+![alt text](img/5_1.png)
+
+---
+
+### Задание 6*(необязательное)
+
+1. Используя null_resource и local-exec примените ansible-playbook к ВМ из ansible inventory файла.
+2. Дополните файл шаблон hosts.tftpl. 
+Формат готового файла:
+```netology-develop-platform-web-0   ansible_host="<внешний IP-address или внутренний IP-address если у ВМ отсутвует внешний адрес>"```
+
+Для проверки работы уберите у ВМ внешние адреса. Этот вариант используется при работе через bastion сервер.
+Для зачета предоставьте код вместе с основной частью задания.
+
+**Ответ.**
+
+<details><summary>ansible.tf</summary>
+
+```tf
+resource "local_file" "hosts_cfg" {
+  content = templatefile("${path.module}/hosts.tftpl",
+
+    {
+      webservers = yandex_compute_instance.vm_web,
+      databases  = yandex_compute_instance.vm_web_2,
+      storage    = yandex_compute_instance.vm_storage,
+    }
+  )
+  filename = "${abspath(path.module)}/hosts.cfg"
+}
+
+resource "null_resource" "web_hosts_provision" {
+
+depends_on = [ yandex_compute_instance.vm_web_2, yandex_compute_instance.vm_storage ]
+
+  provisioner "local-exec" {                  
+    command  = "export ANSIBLE_HOST_KEY_CHECKING=False; ansible-playbook -i ${abspath(path.module)}/hosts.cfg ${abspath(path.module)}/test.yml"
+    on_failure = continue
+    environment = { ANSIBLE_HOST_KEY_CHECKING = "False" }
+  }
+    triggers = {  
+      always_run         = "${timestamp()}" #всегда т.к. дата и время постоянно изменяются
+      playbook_src_hash  = file("${abspath(path.module)}/test.yml") # при изменении содержимого playbook файла
+      ssh_public_key     = local.ssh_file # при изменении переменной
+    }
+}
+```
+
+</details>
+
+<details><summary>test.yml</summary>
+
+```yml
+---
+
+- name: test
+  gather_facts: false
+  hosts: all
+  vars:
+    ansible_user: debian
+  become: yes
+  tasks:
+  
+  - name: Wait for SSH port to become available
+    wait_for:
+      host: "{{ ansible_host }}"
+      port: 22
+      delay: 10
+      timeout: 300
+
+  - name: Install Nginx Web Server on Debian Family
+    apt:
+      name: nginx
+      state: latest   
+      update_cache: yes 
+    
+```
+
+</details>
+
+![alt text](img/6_1.png)
+
+
+
+Дополнил файл-шаблон `hosts.tftpl`.
+
+<details><summary>hosts.tftpl</summary>
+
+```c
+[webservers]
+%{~ for i in webservers ~}
+
+netology-develop-platform-${i["name"]}   ansible_host=${(length(i["network_interface"][0]["nat_ip_address"]) > 0 ? i["network_interface"][0]["nat_ip_address"] : i["network_interface"][0]["ip_address"])} 
+%{~ endfor ~}
+
+[databases]
+%{~ for i in databases ~}
+
+netology-develop-platform-${i["name"]}   ansible_host=${(length(i["network_interface"][0]["nat_ip_address"]) > 0 ? i["network_interface"][0]["nat_ip_address"] : i["network_interface"][0]["ip_address"])} 
+%{~ endfor ~}
+
+
+[storage]
+%{~ for i in storage ~}
+
+netology-develop-platform-${i["name"]}   ansible_host=${(length(i["network_interface"][0]["nat_ip_address"]) > 0 ? i["network_interface"][0]["nat_ip_address"] : i["network_interface"][0]["ip_address"])} 
+%{~ endfor ~}
+```
+</details>
+
+Изменил значение VM STORAGE `nat = false`:
+![alt text](img/6_2.png)
+![alt text](img/6_3.png)
+---
+
+### Правила приема работы
+
+В своём git-репозитории создайте новую ветку terraform-03, закомитьте в эту ветку свой финальный код проекта. Ответы на задания и необходимые скриншоты оформите в md-файле в ветке terraform-03.
+
+В качестве результата прикрепите ссылку на ветку terraform-03 в вашем репозитории.
+
+ВАЖНО!Удалите все созданные ресурсы.
