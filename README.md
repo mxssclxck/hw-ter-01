@@ -501,7 +501,7 @@ netology-develop-platform-${i["name"]}   ansible_host=${(length(i["network_inter
 ![alt text](img/6_3.png)
 
 Пример выполнения
-<video src='https://disk.yandex.ru/i/SIEq5Lkz7qxa7Q'>
+[<img src='https://disk.yandex.ru/client/disk/Netology/videogit?idApp=client&dialog=slider&idDialog=%2Fdisk%2FNetology%2Fvideogit%2F%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%20%D0%BE%D1%82%202023-09-26%2009-42-30.png'/>(https://disk.yandex.ru/client/disk/Netology/videogit?idApp=client&dialog=slider&idDialog=%2Fdisk%2FNetology%2Fvideogit%2F1.mp4)]
 
 ---
 
