@@ -499,6 +499,10 @@ netology-develop-platform-${i["name"]}   ansible_host=${(length(i["network_inter
 Изменил значение VM STORAGE `nat = false`:
 ![alt text](img/6_2.png)
 ![alt text](img/6_3.png)
+
+Пример выполнения
+<video src='vid/1.mp4'>
+
 ---
 
 ### Правила приема работы
